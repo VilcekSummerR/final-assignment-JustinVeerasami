@@ -1,0 +1,497 @@
+---
+title: "Analysis of Sleep Factors Utilizing Fitbit Data Tracking"
+output: slidy_presentation
+date: "08/19/2024"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Background: Analyzing Sleep Quality from Produced Fitbit Data
+
+Data sourced from: <https://www.kaggle.com/datasets/arashnic/fitbit/data>
+
+-   I had a desire to study sleep data and pull analytical data from it to evaluate the factors leading to “good sleep” based off wearable device tracking
+
+-   Fitbit data pulled from 30 participants from 2 months of usage split in 2 separate data sets, 1 of those months ([4.12.16 to 5.12.16] will be used in this project due to the increased diversity of data)
+
+-   Data provides fitness indicators such as caloric burning, intensities, and other daily activity breakdowns which may be possibly related to sleep factors found in additional sectors of the data.
+
+-   A thorough explanation of the details / variables may be found here: <https://www.fitabase.com/resources/knowledge-base/exporting-data/data-dictionaries/>
+
+-   I had the goal from this data to see a detailed breakdown of potential activity related factors derived from caloric burn, exercise intensities, and similar related factors to relate to that of broken down sleep categories.
+
+## Background: Notice of Dataset Downsides
+
+Note: The reliability of this dataset does have some concerns that must be noted for the sake of further analysis
+
+-   Demographic: Not available in the dataset, it is entirely anonymized and persons are assigned ID numbers alone
+-   Age : Not available
+-   Personal Information (conditions, and similar factors): Not present, and as such the data is presented generally without external factors that may have influenced odd sections of data.
+
+## Pulling Important Libraries
+
+```{r pulling important libraries, echo=TRUE}
+#General functions that will be useful in formatting, processing, and cleaning the data 
+library (tidyverse) 
+library(lubridate) # Processes Dates
+library (ggplot2) # Produces Plots
+library(gridExtra) # Formats Plots on Slide-Deck
+```
+
+## Subsetting Data From the Dataset to Analyze Groups
+
+```{r Testing different files to see appropriate subsets to use, echo = TRUE, results='hide', message=FALSE, warning=FALSE}
+
+# Pulls Data from the github page, the csv files below are the only remaining datasets in the fitbit data for the sake of storage size
+
+# Pulling several CSV files from the folder to create a consolidated dataframe after having matching groups / user data to compare
+sleepMinutes <- read.csv("https://raw.githubusercontent.com/VilcekSummerR/final-assignment-JustinVeerasami/main/FitBItData/mturkfitbit_export_4.12.16-5.12.16/Fitabase%20Data%204.12.16-5.12.16/minuteSleep_merged.csv?token=GHSAT0AAAAAACUS4QMRH65DLWN4MI7BOWNOZV6SANA")
+sleepMinutes <- sleepMinutes[,1:3]
+
+# Data containing Intensity levels, Calories burned, Steps, etc.
+dailyActivity <- read.csv("https://raw.githubusercontent.com/VilcekSummerR/final-assignment-JustinVeerasami/main/FitBItData/mturkfitbit_export_4.12.16-5.12.16/Fitabase%20Data%204.12.16-5.12.16/dailyActivity_merged.csv?token=GHSAT0AAAAAACUS4QMQT7NCLLF3UUTAVRCQZV6SAGA")
+
+# Data containing MET (metabolic) values (raw data multiplies proper amount by x10)
+dailyMET <- read.csv("https://raw.githubusercontent.com/VilcekSummerR/final-assignment-JustinVeerasami/main/FitBItData/mturkfitbit_export_4.12.16-5.12.16/Fitabase%20Data%204.12.16-5.12.16/METDailyData.csv?token=GHSAT0AAAAAACUS4QMRGRA7VU7XROTTK5JCZV6R75Q")
+dailyMET <- dailyMET[2:8]
+
+# Data regarding sleep days, time spent sleeping and time in bed
+sleepDay <- read.csv("https://raw.githubusercontent.com/VilcekSummerR/final-assignment-JustinVeerasami/main/FitBItData/mturkfitbit_export_4.12.16-5.12.16/Fitabase%20Data%204.12.16-5.12.16/sleepDay_merged.csv?token=GHSAT0AAAAAACUS4QMQIBE2PUGZQ2HQ3XL4ZV6SATA")
+
+```
+
+IMPORTANT NOTE: MET DATA IS PRESUBSET FROM THE ORIGINAL DATA IN ORDER TO ADD TO GITHUB FOR EASE OF ACCESS.
+
+-   The data was essentially consolidated into daily chunks so the minute data wouldn't overload the storage requirements as seen below.
+-   The functions below were used to process the minuteMETSNarrow_merged data from the kaggle dataset to make it usable in the repository.
+
+```{r echo = TRUE}
+# For the sake of reproducibility, steps taken to format the data prior to adding it as the datasource on github are shown below. The hashtags may be removed to use it as workable code to format the MET data.
+
+#library(tidyverse)
+
+## Assuming Working Directory is located on a folder stored in the desktop
+#setwd("C:/Users/Ram Veerasami/Desktop/FitBitData/mturkfitbit_export_4.12.16-5.12.16/Fitabase Data 4.12.16-5.12.16/")
+
+## Data containing MET (metabolic) values (raw data multiplies proper amount by x10)
+#minuteMET <- read.csv("minuteMETsNarrow_merged.csv")
+#dailyMET <- minuteMET
+
+#names(dailyMET)[2] <- "date"
+
+## Grouping methods that pull the mean, median, min, max, and range of the MET values for each day per user ID.
+#dailyMETConsolidated <- dailyMET %>% group_by(Id, as.Date(date, format = "%m/%d/%Y")) %>% summarise(METMean = mean(METs, na.rm = TRUE))
+
+#dailyMETConsolidated$METMedian <- dailyMET %>% group_by(Id, as.Date(date, format = "%m/%d/%Y")) %>% summarise(METMedian = median(METs, na.rm = TRUE)) %>% ungroup() %>% pull(METMedian)
+
+#dailyMETConsolidated$METMin <- dailyMET %>% group_by(Id, as.Date(date, format = "%m/%d/%Y")) %>% summarise(METMin = min(METs, na.rm = TRUE)) %>% ungroup() %>% pull(METMin)
+
+#dailyMETConsolidated$METMax <- dailyMET %>% group_by(Id, as.Date(date, format = "%m/%d/%Y")) %>% summarise(METMax = max(METs, na.rm = TRUE)) %>% ungroup() %>% pull(METMax)
+
+#dailyMETConsolidated$METRange <- (dailyMETConsolidated$METMax - dailyMETConsolidated$METMin)
+
+## renames the column as there was some small issue that caused a rename of the date column
+#names(dailyMETConsolidated)[2] <- "Date"
+
+## saves it as a much smaller csv to work with in main project assuming working directory is the original folder for 4.12.16-5.12.16
+## Note date is stored as YYYY-MM-DD so it has a separate formatting for data calculations which is done later in this project
+#write.csv(dailyMETConsolidated,"METDailyData.csv")
+
+```
+
+## Methods: Initial Data Overview
+
+[Establishing a Dataframe Heirarchy:]{.underline} Allows the left join process later in the project to function without any gaps in data
+
+```{r Data Heirarchy, echo = TRUE, results='show'}
+#quickly showing an overview of the datasets to obtain ID's shared between all dataframes. The dataframe with the lowest IDNum will be used as the reference to pull other data to consolidate information regarding the sleep data
+
+chosenData <- c("sleepMinutes", "dailyActivity", "dailyMET", "sleepDay")
+IDNum <- c(n_distinct(sleepMinutes$Id), n_distinct(dailyActivity$Id), n_distinct(dailyMET$Id), n_distinct(sleepDay$Id))
+
+data.frame(chosenData, IDNum)
+
+
+```
+
+## Methods: Main Dataset Cleaning
+
+```{r Dataset Cleaning, echo = TRUE, results='show'}
+# Removes duplicates and NA values
+sleepMinutes <- sleepMinutes %>% distinct() %>% drop_na()
+dailyActivity <- dailyActivity %>% distinct() %>% drop_na()
+dailyMET <- dailyMET %>% distinct() %>% drop_na()
+sleepDay <- sleepDay %>% distinct() %>% drop_na()
+
+# Re-checks to ensure the ID's dont get messed up from the initial dataframe
+chosenData <- c("sleepMinutes", "dailyActivity", "dailyMET", "sleepDay")
+IDNum <- c(n_distinct(sleepMinutes$Id), n_distinct(dailyActivity$Id), n_distinct(dailyMET$Id), n_distinct(sleepDay$Id))
+
+data.frame(chosenData, IDNum)
+
+```
+
+## Methods: Data Recoding
+
+```{r echo = TRUE, results='show'}
+# recoding sleepMinutes to fit the fitbit defined dictionary handbook
+sleepMinutes <- sleepMinutes %>% mutate(SleepStatus = recode_factor(value, '1' = "Asleep", '2' = "Restless", '3' = "Awake"))
+sleepMinutes <- sleepMinutes[,-3]
+```
+
+Data Consolidation of Sleep Information (Minutes to Entire Day Values to condense data to fit other daily criteria)
+
+```{r Dataset Consolidation, echo = TRUE, results='show', message=FALSE}
+sleepConsolidate <- sleepMinutes
+
+sleepSummary <- sleepConsolidate %>% group_by(Id, as.Date(date, format = "%m/%d/%Y")) %>% summarise(Awake = sum(SleepStatus == "Awake", na.rm = TRUE), Restless = sum(SleepStatus == "Restless", na.rm = TRUE), Asleep = sum(SleepStatus == "Asleep", na.rm = TRUE))
+
+names(sleepSummary)[2] <- "Date"
+
+#cleans away older data from Rstudio
+rm(sleepConsolidate,sleepMinutes)
+
+head(sleepSummary)
+
+```
+
+## Methods: Further consolidation of initial minute_Sleep data to that of the sleepDay data for daily parameters in full detail
+
+```{r Data Consolidation (cont.), echo = TRUE, results='show', message=FALSE}
+sleepDay <- sleepDay %>% rename(Date = SleepDay) %>% mutate(Date=as.Date(Date, format="%m/%d/%Y"))
+
+# Joins all of the formatted sleepMinutes and sleepDay data. sleepSummary was chosen as the left factor to further check the NA values and why they show up.
+sleepDataDaily <- left_join(sleepSummary,sleepDay,by = c('Id','Date'))
+
+# Cleans out Asleep Times <30 minutes as such a parameter falls closer into a category of napping as per:sleepfoundation.org
+# https://www.sleepfoundation.org/napping#:~:text=Longer%20naps%2C%20such%20as%20those,woken%20up%20during%20deep%20sleep.
+sleepDataDaily <- sleepDataDaily[sleepDataDaily$Asleep >= 30, ]
+
+#cleans away sleepDay
+rm(sleepDay,sleepSummary)
+
+head(sleepDataDaily)
+```
+
+Viewing NA values in the consolidated list
+
+```{r echo = TRUE, results='show', message=FALSE}
+
+# Display rows where 'TotalSleepRecords' has NA values
+na_sleeprows <- sleepDataDaily[is.na(sleepDataDaily$TotalSleepRecords), ]
+
+# Viewing the dataset to see if these values will be omit or reclassified before further cleaning
+head(na_sleeprows)
+
+```
+
+## Methods: Reclassifying NA values of na_sleeprows to allow dataset to be usable in future calculations / graphs
+
+```{r Reclassification, echo = TRUE, results='hide', message=FALSE}
+na_sleeprows$TotalSleepRecords <- 1 #counts the sleep records as valid events
+
+na_sleeprows <- na_sleeprows[c(1:6)]
+na_sleeprows$TotalMinutesAsleep <- na_sleeprows$Asleep
+na_sleeprows$TotalTimeInBed <- (na_sleeprows$Asleep + na_sleeprows$Restless + na_sleeprows$Awake)
+```
+
+Formatting the main dataset so that it allows all of the formatted NA values to be input as valid data values
+
+```{r echo = TRUE, results='show', message=FALSE}
+# After formatting NA rows to be usable data, replace the NA values with their reformatted values using the ID / Date relationship
+sleepDataDaily <- sleepDataDaily %>% rows_update(na_sleeprows, by = c("Id", "Date"))
+
+# Verify the NA values have been replaced
+na_sleeprows <- sleepDataDaily[is.na(sleepDataDaily$TotalSleepRecords), ]
+head(na_sleeprows)
+```
+
+Resulting Sleep Dataset Consolidated
+
+```{r echo = TRUE, results='show', message=FALSE}
+# cleans previous NA sleeprows from environment
+rm(na_sleeprows)
+
+# Assuring the total minutes asleep and time in bed math were not done improperly
+sleepDataDaily$TotalMinutesAsleep <- sleepDataDaily$Asleep
+sleepDataDaily$TotalTimeInBed <- (sleepDataDaily$Asleep + sleepDataDaily$Restless + sleepDataDaily$Awake)
+
+head(sleepDataDaily)
+
+```
+
+## Methods: Creating Definitions for Sleep Quality
+
+Basic General Definition
+
+-   Uses a parameter of recommended sleep via:National Sleep Foundation
+-   Basic Guideline: <https://pubmed.ncbi.nlm.nih.gov/29073398/>
+-   recommends 7-9 hours for young adults and older on average (used as a baseline for data since demographic is not available)
+-   Sleep durations (less than 6.5 hours or greater than 10.5 hours) are not recommended based off the papers graphed data, but the criteria for good sleep will be used as 7-9 for the sake of common parameters
+
+```{r Sleep Definitions, echo = TRUE, results='show', message=FALSE}
+# Formatting a sleep score so that quality of sleep is built off of total sleep time in a day (Uses recommended amt of total sleep and has a buffer of the deviation range mentioned in the paper above)
+sleepDataDaily$SleepScoreCategory <- ifelse((sleepDataDaily$TotalMinutesAsleep %/% 60 >= 7) & (sleepDataDaily$TotalMinutesAsleep %/% 60 <= 9), "Good Sleep",ifelse((sleepDataDaily$TotalMinutesAsleep %/% 60 >= 6.5) & (sleepDataDaily$TotalMinutesAsleep %/% 60 < 7) |(sleepDataDaily$TotalMinutesAsleep %/% 60 > 9) & (sleepDataDaily$TotalMinutesAsleep %/% 60 <= 10.5),"Decent Sleep","Poor Sleep"))
+
+
+# Setting a column for efficiency pertaining to amount of sleep undisturbed
+sleepDataDaily$SleepEfficiencyScore <- (sleepDataDaily$TotalMinutesAsleep / sleepDataDaily$TotalTimeInBed)
+
+```
+
+## Methods: Creation of the Final Dataframe
+
+```{r echo = TRUE, results='show', message=FALSE}
+# In this section perform a left join of daily activity and the sleepDataDaily with daily activities on the left. Clean out NA values afterwards to have sleep scores related to the daily activity data. The same will be done for dailyMET to have the metabolic data added
+
+# Reformatting date values in dailyActivity to ensure join has no errors
+dailyActivity <- dailyActivity %>% rename(Date = ActivityDate) %>% mutate(Date=as.Date(Date, format="%m/%d/%Y"))
+
+dailyActivityvSleep <- left_join(dailyActivity,sleepDataDaily,by = c('Id','Date'))
+
+dailyActivityvSleep <- drop_na(dailyActivityvSleep)
+
+rm(dailyActivity)
+
+
+```
+
+Performing a Left Join on Metabolic Data
+
+```{r echo = TRUE, results='show', message=FALSE}
+
+dailyMET <- dailyMET %>% mutate(Date=as.Date(Date, format="%Y-%m-%d"))
+
+dailyActivityvSleep <- left_join(dailyActivityvSleep,dailyMET,by = c('Id','Date'))
+
+dailyActivityvSleep <- drop_na(dailyActivityvSleep, SleepScoreCategory)
+
+sleepData <- dailyActivityvSleep
+
+# Cleans the remaining data
+rm(dailyMET, sleepDataDaily, dailyActivityvSleep)
+
+
+head(sleepData)
+
+```
+
+## Results: Initial Analysis in relation to Daily Parameters
+
+```{r echo = TRUE, results='show', message=FALSE}
+SleepCategoryColor <- c("Decent Sleep" = "#74c8ff","Good Sleep" = "#10ffc9","Poor Sleep" = "#fb90aa")
+
+ggplot(sleepData, aes(x=SleepScoreCategory, y=Calories, fill = SleepScoreCategory)) + geom_point() + geom_boxplot()+ scale_fill_manual(values = SleepCategoryColor)+theme_classic()
+
+```
+
+The spread of daily calories seem to describe a rather insignificant relationship between the calories burned per day and sleep scores
+
+-   Notably, the poor sleep and good sleep categories have very similar distributions based off their medians / quartiles indicating calories burned alone do not seem to have a major influence
+
+```{r echo = TRUE, results='show', message=FALSE}
+# possible relation of low daily calories and increased restlessness seen with notable outliers
+c1 <- ggplot(sleepData, aes(x=Calories, y=Restless)) + geom_point() + geom_smooth()+theme_classic()
+c2 <- ggplot(sleepData, aes(x=Calories, y=Awake)) + geom_point() + geom_smooth()+theme_classic()
+c3 <- ggplot(sleepData, aes(x=Calories, y=Asleep)) + geom_point() + geom_smooth()+theme_classic()
+
+grid.arrange(c1, c2, c3,ncol=1, nrow=3)
+```
+
+There does seem to be a potential relation of low daily calories in relation to increased restlessness seen with notable outliers in the first graph below. The total calories seem to not have any correlation to increases in awake / asleep statuses.
+
+```{r echo = TRUE, results='show', message=FALSE}
+SleepCategoryColor <- c("Decent Sleep" = "#9bc1bc","Good Sleep" = "#f4f1bb","Poor Sleep" = "#ed6a5a")
+
+# Analysis of Metabolic Range and Sleep Categories
+ggplot(sleepData, aes(x=SleepScoreCategory, y=METRange)) + stat_summary(fun = mean, geom="bar",aes(fill = SleepScoreCategory),color="grey80")+ scale_fill_manual(values = SleepCategoryColor)+ stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = .5) +theme_light()
+```
+
+Using metabolic range as an indicator of highs versus lows of physical activity in the day, there does seem to be small differences between the sleep categories. That being said, with the error bars in mind, these differences do not seem to be as significant due to considerable overlaps of margins of error.
+
+```{r echo = TRUE, results='show', message=FALSE}
+# There seems to be a present relationship of the sleep score to that of the restless minutes between the good and bad sleep
+ggplot(sleepData, aes(x=SleepScoreCategory, y=Restless)) + stat_summary(fun = mean, geom="bar",aes(fill = SleepScoreCategory),color="grey80")+ scale_fill_manual(values = SleepCategoryColor)+ stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = .5) +theme_light()
+```
+
+Good sleep seems to notably have a lower amount of the restless phases on average compared to the poor and decent stages. Comparing decent sleep to poor sleep however is not as much of a factor due to the overlap of errors.
+
+```{r echo = TRUE, results='show', message=FALSE}
+# Poor Sleep was usually indicative of less hours in bed rather than surpassing the oversleep criteria
+ggplot(sleepData, aes(x=SleepScoreCategory, y=TotalTimeInBed))+ stat_summary(fun = mean, geom="bar",aes(fill = SleepScoreCategory),color="grey80")+ scale_fill_manual(values = SleepCategoryColor)+ stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = .5) +theme_light()
+```
+
+As an overview of the true time spent in bed, good sleep shows a clear gap from the poor sleep category. This is not as significant due to the classification involved in making the groups.
+
+-   The most notable factor is instead the decent sleep category where its noted to have the longest time in bed. The classification of good sleep breaches over the criteria of 9 hours as the maximum time for good sleep and between 6.5 - 7 hours for the under average range, it seems for those who receive "Decent Sleep" they seem to correspond to extra time over the standard healthy range rather than being slightly below it.
+
+```{r echo = TRUE, results='show', message=FALSE}
+# Surprisingly decent sleep falls sharply off the total steps of the good / bad sleep groups
+ggplot(sleepData, aes(x=SleepScoreCategory, y=TotalSteps))+ stat_summary(fun = mean, geom="bar",aes(fill = SleepScoreCategory),color="grey80")+ scale_fill_manual(values = SleepCategoryColor)+ stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = .5) +theme_light()
+```
+
+Of this plot, the most major datapoint exists in decent sleep where there is a very sharp drop in total steps for decent sleep versus the good/poor categories.
+
+```{r echo = TRUE, results='show', message=FALSE}
+ggplot(sleepData, aes(x=SleepScoreCategory, y=Calories))+ stat_summary(fun = mean, geom="bar",aes(fill = SleepScoreCategory),color="grey80")+ scale_fill_manual(values = SleepCategoryColor)+ stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = .5) +theme_light()
+```
+
+Good sleep shows a slightly higher caloric burn rate, but the differences between the groups are not significant enough to warrant any further analysis due to their overlaps.
+
+```{r echo = TRUE, results='show', message=FALSE}
+# Trying to categorize data to use intervals (2 sets of categorical data) for testing via a heatmap
+sleepDataIntervalTesting <- sleepData %>%mutate(BedIntervals = cut_number(TotalTimeInBed, n=10))
+
+# A heatmap of what notably seems to be a struggle time interval for those with poor sleep where their sleep efficiency plummets around the 468-567 minute group
+ggplot(sleepDataIntervalTesting, aes(x=SleepScoreCategory, y=BedIntervals, fill=SleepEfficiencyScore))+ geom_tile() + scale_fill_gradient(low= "#ed6a5a",high="#f4f1bb")+theme_classic()
+```
+
+Bed time intervals were mapped out in relation to their sleep categories to see how efficient these intervals were in sleep. What came as a initial surprise was the odd gap of time with a sharp drop in sleep efficiency for the poor sleep group. Such was a group that I would definitely hope to further analyze later into this project.
+
+## Results: Analysis of Daily Activity Minutes Broken Down
+
+```{r echo = TRUE, results='show', message=FALSE}
+# Creating a boxplots of minutes of activity in relation to sleep score categories
+sleepVSActiveMinutes <- sleepData[c(11:14,22)]
+
+# Assigning a color scheme for the categories for ease of viewing
+SleepCategoryColor <- c("Decent Sleep" = "#74c8ff","Good Sleep" = "#10ffc9","Poor Sleep" = "#fb90aa")
+
+# Setting up separate boxplots to arrange in a grid format to see the side by side of the sleep categories and activity minutes
+p1 <- ggplot(sleepVSActiveMinutes,aes(x=SleepScoreCategory,y=SedentaryMinutes, fill=SleepScoreCategory))+geom_boxplot()+ scale_fill_manual(values = SleepCategoryColor)+theme_classic()+theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) + ggtitle("Sedentary Scores") + labs(x=NULL)
+
+p2 <- ggplot(sleepVSActiveMinutes,aes(x=SleepScoreCategory,y=LightlyActiveMinutes, fill=SleepScoreCategory))+geom_boxplot()+ scale_fill_manual(values = SleepCategoryColor)+theme_classic()+theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())+ ggtitle("Lightly Active Scores")+ labs(x=NULL)
+
+p3 <- ggplot(sleepVSActiveMinutes,aes(x=SleepScoreCategory,y=FairlyActiveMinutes, fill=SleepScoreCategory))+geom_boxplot()+ scale_fill_manual(values = SleepCategoryColor)+theme_classic()+theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())+ ggtitle("Fairly Active Scores")+ labs(x=NULL)
+
+p4 <- ggplot(sleepVSActiveMinutes,aes(x=SleepScoreCategory,y=VeryActiveMinutes, fill=SleepScoreCategory))+geom_boxplot()+ scale_fill_manual(values = SleepCategoryColor)+theme_classic()+theme(axis.text.x=element_blank(), axis.ticks.x=element_blank())+ ggtitle("Very Active Scores")+ labs(x=NULL)
+
+grid.arrange(p1, p2, p3, p4, ncol=2, nrow=2)
+
+```
+
+As a brief breakdown of daily activity efforts in relation to their sleep score influence, there does seem to be the most relevancy regarding the sedentary scores portion of this chart interface. The box plots seem to have reasonable spacing indicative of data differences that may influence the effects on sleep to a larger degree where perhaps more sedentary behavior may correspond to a lower sleep quality.
+
+## Discussion: Further Analysis of Notable Results
+
+Having taken a look at notable sections I wanted to analyze in order to see if several daily activities had a major effect on sleep factors, I decided on analyzing the following variables for this project to see if their results were significant and statistically relevant:
+
+-   **Sleep Score Categories, Bed Time Intervals, and their efficiency score**
+-   **Total steps in relation to their sleep scores**
+
+These points were chosen due to factors of curiosity on my end with how they interact with the data and also the factors of how initially significant they looked upon doing a very brief overview of the graphs generated by the dataframe. While there were other variables that I wanted to analyze, I chose these two variables due to the factors before and the sake of timing with the scope of this project.
+
+## Discussion: Analysis of Total Steps Versus Sleep Scores
+
+```{r results='show', message=FALSE }
+## Going back to the initial graph so that it may be referenced to the statistics below
+SleepCategoryColor <- c("Decent Sleep" = "#9bc1bc","Good Sleep" = "#f4f1bb","Poor Sleep" = "#ed6a5a")
+
+ggplot(sleepData, aes(x=SleepScoreCategory, y=TotalSteps))+ stat_summary(fun = mean, geom="bar",aes(fill = SleepScoreCategory),color="grey80")+ scale_fill_manual(values = SleepCategoryColor)+ stat_summary(fun.data = mean_cl_normal, geom = "errorbar", width = .5) +theme_light()
+```
+
+```{r echo = TRUE, results='show', message=FALSE}
+kruskal.test(sleepDataIntervalTesting$TotalSteps ~ sleepDataIntervalTesting$SleepScoreCategory)
+
+```
+
+As an initial test of group significance, a kruskal test indicates a potentially significant difference between the categories of sleep and their total steps taken daily. This aids in the potential assumption that the sleep categories do have factors either affecting the total steps being used through the day or instead being affected by total steps taken prior to sleep.
+
+```{r echo = TRUE, results='show', message=FALSE}
+sleepDataIntervalTesting$StepDichotomy <- ifelse(sleepDataIntervalTesting$SleepScoreCategory == "Good Sleep" | sleepDataIntervalTesting$SleepScoreCategory == "Poor Sleep", "Regular Steps", "Lower Steps")
+
+wilcox.test( sleepDataIntervalTesting$TotalSteps ~ sleepDataIntervalTesting$StepDichotomy)
+```
+
+Further dichotomization was done to consolidate the good/poor sleep versus the decent sleep to see how the steps truly varies between the two groups. Using a wilcox test, data indicates that there is a significant shift as earlier with the decent sleep category and the other sleep categories where the p-value of 0.0001519 seems to fall under the required threshold.
+
+-   To further characterize the data, a t-test will be done with an assumption of normality.
+
+```{r echo = TRUE, results='show', message=FALSE}
+# Assuming normal distribution which acts as more of a stretch on the data as it does seem to deviate from normality after 2 deviations.
+t.test( sleepDataIntervalTesting$TotalSteps ~ sleepDataIntervalTesting$StepDichotomy)
+
+```
+
+With the loose assumption of normality as the data slightly skews off after 2 deviations, there is a significant gap shown between the lower step group (decent sleep) versus the regular steps (good and poor sleep) with the means being nearly 5000 steps off.
+
+-   As a major note however, upon viewing the decent sleep category in detail there was noted to be 10 actual units involved with decent sleep in the dataframe. This limited sum of cells compared to the rest of the dataset could also be indicative of further testing having to be done to verify such a result
+
+## Discussion: Further Analysis of Sleep Efficiency and Time Spent in Bed
+
+```{r results='show', message=FALSE}
+# The Same Heatmap from Earlier
+ggplot(sleepDataIntervalTesting, aes(x=SleepScoreCategory, y=BedIntervals, fill=SleepEfficiencyScore))+ geom_tile() + scale_fill_gradient(low= "#ed6a5a",high="#f4f1bb")+theme_classic()
+```
+
+Running a Spearman Rho Test to see the correlation of the sleep efficiencies and Total Time in Bed
+
+```{r echo = TRUE, results='show', message=FALSE}
+cor.test(sleepDataIntervalTesting$SleepEfficiencyScore,sleepDataIntervalTesting$TotalTimeInBed, method = "spearman")
+```
+
+The p-value of 0.3633 indicates that there is not as strong of a correlation of the sleep efficiency in relation to the time spent in bed. The number is quite high and above a standard number of say, 0.05
+
+```{r echo = TRUE, results='show', message=FALSE}
+# Attempting to shave off the total time in bed section to fit the notable section
+
+isolatedIntervalData <- sleepData[sleepData$TotalTimeInBed >= 450 & sleepData$TotalTimeInBed <= 550, ]
+cor.test(isolatedIntervalData$SleepEfficiencyScore,isolatedIntervalData$TotalTimeInBed, method = "spearman")
+```
+
+The p-value in this context was much higher indicating something in the data that I intended to look into to see why there was this notable section of the heatmap, but no statistical indicator (that comes to mind) for properly evaluating it.
+
+-   There was a decision to outline the section that received poor sleep in the isolated section via manual viewing
+
+```{r echo = TRUE, results='show', message=FALSE}
+
+sortedData <- isolatedIntervalData[c(1,16:18,20:23)]
+
+sortedData <- sortedData[order(sortedData$SleepEfficiencyScore), ]
+
+head(sortedData)
+
+```
+
+The most notable region of this data was that of the user ID: 3977333714 who in this sorted data had 17 rows of data with restless times above 100 minutes.
+
+-   Of the assumption that I could make from this analysis, I would have to say that there is a suspicion of the heatmap region receiving the lower efficiency score due to an outlier person being used within that time interval who had a large period of restlessness for each day in their categories.
+
+```{r echo = TRUE, results='show', message=FALSE}
+kruskal.test(sleepDataIntervalTesting$SleepEfficiencyScore ~ sleepDataIntervalTesting$SleepScoreCategory)
+```
+
+As a separate result to the prior analysis though, there does seem to be a rather low p-value in the context of a Kruskal-Wallis test aimed to evaluate the 3 sleep categories produced from the data. The low p-value indicates there is a viable relationship of significant differences for sleep efficiency scores and the sleep categories.
+
+## Conclusions
+
+[**Sleep Score Categories and Step Totals**]{.underline}
+
+-   There was noted to be a significant correspondence to the step totals and their sleep categories. Whether or not the step totals affect their categories versus the categories affect the step totals is up to further discussion and analysis.
+-   If there were to be an assumption based off of common study prior on exercise versus sleep health, there would be a showing that categories such as decent sleep may have aligned with a less optimal sleep group due to a smaller frame of time to exercise. However, such a conclusion cannot be stated as verified from this experiment as the factor of 10 users being classified as "Decent Sleep" in this analysis led to a smaller sample size compared to the other groups.
+-   Potential fixes would involve a larger dataset of the 33 users involved in the original dataframe, additionally, adjusting the sleep definition to accomodate from the other factors like awake / restless time would lead to further diversification of the data to possibly fit more of an even group comparison.
+
+[**Sleep Score Categories and Bed Time Intervals**]{.underline}
+
+-   Of the evaluations that could be done from this data. It could be noted that there were notably significant ties to the categories and their sleep efficiency scores
+-   While the intervals in bed themselves were not noted to experience any significant ties of data correlation, the deviance found within the heatmap could be pointed towards a significant outlier of the dataset which experienced an abnormally high amount of restless time to affect the overall sleep category.
+-   Such testing would be potentially remedied with an adjusted definition of the sleep categories to accomodate factors of wake time / restlessness so that outliers dont lead to abnormal group results
+
+## Future Directions Outside of The Current Analyzed Data
+
+Aside from the datasets analyzed in further detail within this report, there did exist other graphs with notable data that had to be skipped due to time constraints
+
+-   Examples of said data would include: (calories vs restlessness, awake time, sleep time), (sleep factors vs metabolic data (range, medians, maximums)), and (sedentary to highly active minutes versus sleep quality).
+
+-   Future research involving these datasets would follow a similar process as this project did with correlation tests to further see how other variables affect sleep factors
+
+-   Future research may also accomodate a larger, more thorough dataset to also see a detailed analysis of factors that may have lacked appropriate criteria for each section of analysis
+
+-   Finally, future research would also benefit from possibly breaking down the daily data into instead hourly data so that timeframes such as (morning, evening, and afternoon) may be classifed to see possible significant associations hidden due to holistic analysis.
+
+## References
+
+-   Summer, J., & Summer, J. (2024, March 11). Napping: benefits and tips. Sleep Foundation. <https://www.sleepfoundation.org/napping#>
+-   Hirshkowitz, M., Whiton, K., Albert, S. M., Alessi, C., Bruni, O., DonCarlos, L., Hazen, N., Herman, J., Hillard, P. J. A., Katz, E. S., Kheirandish-Gozal, L., Neubauer, D. N., O’Donnell, A. E., Ohayon, M., Peever, J., Rawding, R., Sachdeva, R. C., Setters, B., Vitiello, M. V., & Ware, J. C. (2015). National Sleep Foundation’s updated sleep duration recommendations: final report. Sleep Health, 1(4), 233–243. <https://doi.org/10.1016/j.sleh.2015.10.004>
