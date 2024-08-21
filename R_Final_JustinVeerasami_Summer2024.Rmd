@@ -1,3 +1,4 @@
+FL Note: A grade; well done! The heatmap looks like maybe it is displaying oddly with lots of white space, but well done overall
 ---
 title: "Analysis of Sleep Factors Utilizing Fitbit Data Tracking"
 output: slidy_presentation
